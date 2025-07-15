@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FullCalendar ƒTƒ“ƒvƒ‹</title>
+    <title>FullCalendar ã‚µãƒ³ãƒ—ãƒ«</title>
     <!-- FullCalendar v6.1.8 CDN -->
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
@@ -26,26 +26,26 @@
     </style>
 </head>
 <body>
-    <h1 style="text-align:center">FullCalendar ƒfƒ‚</h1>
+    <h1 style="text-align:center">FullCalendar ãƒ‡ãƒ¢</h1>
     <div id="calendar"></div>
 
     <script>document.addEventListener("DOMContentLoaded", function () {
         const calendarEl = document.getElementById("calendar");
 
-        // FullCalendar ‰Šú‰»
+        // FullCalendar åˆæœŸåŒ–
         const calendar = new FullCalendar.Calendar(calendarEl, {
-          initialView: "dayGridMonth", // Œ•\¦
-          locale: "ja", // “ú–{Œê‰»
+          initialView: "dayGridMonth", // æœˆè¡¨ç¤º
+          locale: "ja", // æ—¥æœ¬èªåŒ–
           headerToolbar: {
             left: "prev,next today",
             center: "title",
             right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
           },
-          navLinks: true, // “ú/T ƒ^ƒCƒgƒ‹ƒNƒŠƒbƒN‚Å‘JˆÚ
-          selectable: true, // “ú•t‘I‘ğ‰Â”\
+          navLinks: true, // æ—¥/é€± ã‚¿ã‚¤ãƒˆãƒ«ã‚¯ãƒªãƒƒã‚¯ã§é·ç§»
+          selectable: true, // æ—¥ä»˜é¸æŠå¯èƒ½
           selectMirror: true,
           select: function (info) {
-            const title = prompt("ƒCƒxƒ“ƒg–¼‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢:");
+            const title = prompt("ã‚¤ãƒ™ãƒ³ãƒˆåã‚’å…¥åŠ›ã—ã¦ãã ã•ã„:");
             if (title) {
               calendar.addEvent({
                 title,
@@ -57,14 +57,14 @@
             calendar.unselect();
           },
           eventClick: function (info) {
-            if (confirm("‚±‚ÌƒCƒxƒ“ƒg‚ğíœ‚µ‚Ü‚·‚©H")) {
+            if (confirm("ã“ã®ã‚¤ãƒ™ãƒ³ãƒˆã‚’å‰Šé™¤ã—ã¾ã™ã‹ï¼Ÿ")) {
               info.event.remove();
             }
           },
           events: [
             {
-              title: "‰ï‹c",
-              start: new Date().toISOString().slice(0, 10), // ¡“ú
+              title: "ä¼šè­°",
+              start: new Date().toISOString().slice(0, 10), // ä»Šæ—¥
             },
           ],
         });

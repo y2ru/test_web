@@ -1,114 +1,110 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8" />
-    <title>SQLite + FullCalendar（保存/読込対応）</title>
-
-    <!-- FullCalendar -->
+    <meta charset="UTF-8">
+    <title>FullCalendar + SQLite + IndexedDB</title>
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.js"></script>
-
-    <!-- sql.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
-
-    <style>
-        body {
-            font-family: sans-serif;
-            padding: 2rem;
-        }
-
-        #calendar {
-            max-width: 900px;
-            margin: auto;
-        }
-
-        #controls {
-            text-align: center;
-            margin-bottom: 1rem;
-        }
-
-        button {
-            margin: 0 0.5rem;
-        }
-    </style>
 </head>
 <body>
-    <h1 style="text-align: center;">SQLite + FullCalendar（保存/読込対応）</h1>
-    <div id="controls">
-        <button id="saveBtn">保存</button>
-        <input type="file" id="loadInput" accept=".db" />
-    </div>
-    <div id="calendar"></div>
+    <h2 style="text-align:center;">SQLite + FullCalendar（IndexedDB 永続保存）</h2>
+    <div id="calendar" style="max-width:900px;margin:auto;"></div>
 
     <script>
         let db, calendar, SQL;
 
-        const updateCalendarFromDB = () => {
+        const DB_KEY = 'calendar-db';
+
+        // IndexedDB に保存
+        const saveToIndexedDB = () => {
+            const data = db.export();
+            const request = indexedDB.open("calendarApp", 1);
+
+            request.onupgradeneeded = (e) => {
+                e.target.result.createObjectStore("data");
+            };
+
+            request.onsuccess = () => {
+                const tx = request.result.transaction("data", "readwrite");
+                const store = tx.objectStore("data");
+                store.put(data, DB_KEY);
+            };
+        };
+
+        // IndexedDB から読み込み（Promise）
+        const loadFromIndexedDB = () => {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open("calendarApp", 1);
+                req.onupgradeneeded = (e) => {
+                    e.target.result.createObjectStore("data");
+                };
+                req.onsuccess = () => {
+                    const dbIDB = req.result;
+                    const tx = dbIDB.transaction("data", "readonly");
+                    const store = tx.objectStore("data");
+                    const getReq = store.get(DB_KEY);
+                    getReq.onsuccess = () => resolve(getReq.result);
+                    getReq.onerror = reject;
+                };
+                req.onerror = reject;
+            });
+        };
+
+        // FullCalendar に反映
+        const updateCalendar = () => {
+            const events = [];
             const res = db.exec("SELECT id, title, start, end FROM events");
-            const events = res.length ? res[0].values.map(([id, title, start, end]) => ({ id, title, start, end })) : [];
+            if (res.length) {
+                res[0].values.forEach(([id, title, start, end]) => {
+                    events.push({ id, title, start, end });
+                });
+            }
             calendar.removeAllEvents();
             calendar.addEventSource(events);
         };
 
+        // カレンダー初期化
         const initCalendar = () => {
             const calendarEl = document.getElementById('calendar');
             calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
                 selectable: true,
                 events: [],
-                select: (info) => {
-                    const title = prompt('イベントタイトル:');
+                select(info) {
+                    const title = prompt('タイトル:');
                     if (title) {
                         db.run("INSERT INTO events (title, start, end) VALUES (?, ?, ?)", [title, info.startStr, info.endStr]);
-                        updateCalendarFromDB();
+                        updateCalendar();
+                        saveToIndexedDB();
                     }
                 },
-                eventClick: (info) => {
-                    if (confirm(`"${info.event.title}" を削除しますか？`)) {
+                eventClick(info) {
+                    if (confirm('削除しますか？')) {
                         db.run("DELETE FROM events WHERE id = ?", [info.event.id]);
-                        updateCalendarFromDB();
+                        updateCalendar();
+                        saveToIndexedDB();
                     }
                 }
             });
             calendar.render();
         };
 
-        const initDatabase = () => {
-            db = new SQL.Database();
-            db.run(`CREATE TABLE IF NOT EXISTS events (
-            id INTEGER PRIMARY KEY,
-            title TEXT,
-            start TEXT,
-            end TEXT
-          )`);
-        };
-
-        const setupUI = () => {
-            document.getElementById('saveBtn').addEventListener('click', () => {
-                const data = db.export();
-                const blob = new Blob([data], { type: 'application/octet-stream' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = 'calendar.db';
-                a.click();
-            });
-
-            document.getElementById('loadInput').addEventListener('change', async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const arrayBuffer = await file.arrayBuffer();
-                db = new SQL.Database(new Uint8Array(arrayBuffer));
-                updateCalendarFromDB();
-            });
-        };
-
+        // 起動処理
         initSqlJs({
-            locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${filename}`
+            locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
         }).then(SQLLib => {
             SQL = SQLLib;
-            initDatabase();
+            return loadFromIndexedDB();
+        }).then(saved => {
+            db = saved ? new SQL.Database(new Uint8Array(saved)) : new SQL.Database();
+            if (!saved) {
+                db.run("CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, title TEXT, start TEXT, end TEXT)");
+            }
             initCalendar();
-            setupUI();
+            updateCalendar();
+        }).catch(err => {
+            console.error("DB 初期化失敗", err);
         });
     </script>
 </body>

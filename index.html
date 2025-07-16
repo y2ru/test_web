@@ -2,74 +2,114 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FullCalendar サンプル</title>
-    <!-- FullCalendar v6.1.8 CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <title>SQLite + FullCalendar（保存/読込対応）</title>
+
+    <!-- FullCalendar -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.js"></script>
+
+    <!-- sql.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+
     <style>
         body {
-            font-family: system-ui, sans-serif;
-            margin: 0;
+            font-family: sans-serif;
             padding: 2rem;
-            background: #f6f8fa;
         }
 
         #calendar {
             max-width: 900px;
-            margin: 0 auto;
-            background: #fff;
-            border-radius: 0.5rem;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            padding: 1rem;
+            margin: auto;
+        }
+
+        #controls {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        button {
+            margin: 0 0.5rem;
         }
     </style>
 </head>
 <body>
-    <h1 style="text-align:center">FullCalendar デモ</h1>
+    <h1 style="text-align: center;">SQLite + FullCalendar（保存/読込対応）</h1>
+    <div id="controls">
+        <button id="saveBtn">保存</button>
+        <input type="file" id="loadInput" accept=".db" />
+    </div>
     <div id="calendar"></div>
 
-    <script>document.addEventListener("DOMContentLoaded", function () {
-        const calendarEl = document.getElementById("calendar");
+    <script>
+        let db, calendar, SQL;
 
-        // FullCalendar 初期化
-        const calendar = new FullCalendar.Calendar(calendarEl, {
-          initialView: "dayGridMonth", // 月表示
-          locale: "ja", // 日本語化
-          headerToolbar: {
-            left: "prev,next today",
-            center: "title",
-            right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
-          },
-          navLinks: true, // 日/週 タイトルクリックで遷移
-          selectable: true, // 日付選択可能
-          selectMirror: true,
-          select: function (info) {
-            const title = prompt("イベント名を入力してください:");
-            if (title) {
-              calendar.addEvent({
-                title,
-                start: info.startStr,
-                end: info.endStr,
-                allDay: info.allDay,
-              });
-            }
-            calendar.unselect();
-          },
-          eventClick: function (info) {
-            if (confirm("このイベントを削除しますか？")) {
-              info.event.remove();
-            }
-          },
-          events: [
-            {
-              title: "会議",
-              start: new Date().toISOString().slice(0, 10), // 今日
-            },
-          ],
+        const updateCalendarFromDB = () => {
+            const res = db.exec("SELECT id, title, start, end FROM events");
+            const events = res.length ? res[0].values.map(([id, title, start, end]) => ({ id, title, start, end })) : [];
+            calendar.removeAllEvents();
+            calendar.addEventSource(events);
+        };
+
+        const initCalendar = () => {
+            const calendarEl = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                selectable: true,
+                events: [],
+                select: (info) => {
+                    const title = prompt('イベントタイトル:');
+                    if (title) {
+                        db.run("INSERT INTO events (title, start, end) VALUES (?, ?, ?)", [title, info.startStr, info.endStr]);
+                        updateCalendarFromDB();
+                    }
+                },
+                eventClick: (info) => {
+                    if (confirm(`"${info.event.title}" を削除しますか？`)) {
+                        db.run("DELETE FROM events WHERE id = ?", [info.event.id]);
+                        updateCalendarFromDB();
+                    }
+                }
+            });
+            calendar.render();
+        };
+
+        const initDatabase = () => {
+            db = new SQL.Database();
+            db.run(`CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY,
+            title TEXT,
+            start TEXT,
+            end TEXT
+          )`);
+        };
+
+        const setupUI = () => {
+            document.getElementById('saveBtn').addEventListener('click', () => {
+                const data = db.export();
+                const blob = new Blob([data], { type: 'application/octet-stream' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'calendar.db';
+                a.click();
+            });
+
+            document.getElementById('loadInput').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const arrayBuffer = await file.arrayBuffer();
+                db = new SQL.Database(new Uint8Array(arrayBuffer));
+                updateCalendarFromDB();
+            });
+        };
+
+        initSqlJs({
+            locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${filename}`
+        }).then(SQLLib => {
+            SQL = SQLLib;
+            initDatabase();
+            initCalendar();
+            setupUI();
         });
-
-        calendar.render();
-      });</script>
+    </script>
 </body>
 </html>
